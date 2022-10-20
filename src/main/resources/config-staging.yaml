@@ -1,0 +1,35 @@
+api12.host: api-12-stg-cd-order-ticket-to-jdeuk.uk-e1.cloudhub.io   
+api12.truststore.path: keystore/api-6-Mule-stg-trustStore.ts
+api12.truststore.pwd: "![9aObguYdw0MwAZNNmmZAIg===]"
+api12.muleuser : cdukmuleuser
+api12.mulepassword : "![SVnhnkv9gvF5wIRRTu9PLb1JEclLfXIxxB3EvWCdNOJN+aMXydOeDK9pAuxgFC60]"
+
+SQSTestQueueARN: "arn:aws:sqs:eu-west-2:218792631131:cd-uk-stg-e1-ops-data-reprocessor"            
+SQSAccessKey: "AKIATF4IOTNNZ3INBUM5"               
+SQSSecretKey: "![21QzaT6SERlGir4FAltByW5qyHUlYXdWt1K/KJ54wjId4oAioVKBkuTlXfKLhm1Q]"
+SQSQueueURL: "https://sqs.eu-west-2.amazonaws.com/218792631131/cd-uk-stg-e1-ops-data-reprocessor"          
+sqs.receive.frequency: "5"
+
+cloudhub.username: "Concrete-Direct-CICD"
+cloudhub.pwd: "![I8NxYqpVThhV7NqfSI7EqXhWl/NAIcFPT72q1k9Uu78=]"
+cloudhub.env: "849fcdd2-e7ef-448e-a08d-a38f6ca13e75"
+cloudhub.domain: "api-20-stg-common-data-reprocessor"
+
+
+//request.path.api5: orderPayload
+//api5.host: api-5-common-cd-order-ticket-dev-gateway.ir-e1.cloudhub.io 
+//api5.truststore.path: keystore/Holcim-Mule-dev-trustStore.ts
+//api5.truststore.pwd: "![DoC0spkJRTaQ2QT9FyiG/A==]"
+//api5.muleuser : holcimmuleuser
+//api5.mulepassword : "![l9lRT2YwUWmloD3Wla/HNA==]"
+
+//SQSTestQueueARN: "arn:aws:sqs:eu-west-1:379218615267:cd-uk-stg-e1-ops-data-reprocessor"
+//SQSAccessKey: "AKIAVQSZQ3PRU6AKCO4L"
+//SQSSecretKey: "![21QzaT6SERlGir4FAltByW5qyHUlYXdWt1K/KJ54wjId4oAioVKBkuTlXfKLhm1Q]"
+//SQSQueueURL: "https://sqs.eu-west-1.amazonaws.com/379218615267/cd-uk-stg-e1-ops-data-reprocessor"
+//sqs.receive.frequency: "30"
+
+//cloudhub.username: "Concrete-Direct-CICD"
+//cloudhub.pwd: "![I8NxYqpVThhV7NqfSI7EqXhWl/NAIcFPT72q1k9Uu78=]"
+//cloudhub.env: "e0f8c85c-402a-421b-8e1e-57cf749deb22"
+//cloudhub.domain: "api-20-stg-cd-order-ticket-to-jdeuk"

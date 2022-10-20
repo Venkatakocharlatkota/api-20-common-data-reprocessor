@@ -1,0 +1,3 @@
+outage.duration: "5"
+numberOfMessages: "5"
+timeout.response: "180000"

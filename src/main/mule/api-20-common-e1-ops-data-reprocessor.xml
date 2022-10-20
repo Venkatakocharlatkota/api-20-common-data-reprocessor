@@ -1,0 +1,401 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:cloudhub="http://www.mulesoft.org/schema/mule/cloudhub" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:sqs="http://www.mulesoft.org/schema/mule/sqs" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/sqs http://www.mulesoft.org/schema/mule/sqs/current/mule-sqs.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/cloudhub http://www.mulesoft.org/schema/mule/cloudhub/current/mule-cloudhub.xsd">
+	<flow name="api-20-common-data-reprocessorFlow" doc:id="fa9452cb-a48f-4c7d-b6a1-312b49de029b" >
+<!-- <http:listener doc:name="Listener" doc:id="a4506db6-75f6-4e5f-b7f5-a3ec55d67c30" config-ref="HTTP_Listener_config" path="/sqs"/> -->
+		
+<sqs:receivemessages doc:name="Receive messages" doc:id="b21e76dc-9b9a-49e3-9948-efc9c9f8f633" config-ref="Amazon_SQS_Configuration" queueUrl="${secure::SQSQueueURL}" frequency="${secure::sqs.receive.frequency}" timeUnit="SECONDS" numberOfMessages="${numberOfMessages}"/>
+		<logger level="INFO" doc:name="Logger" doc:id="21dda7d6-0c7e-4a9d-90f3-aa996064cb3e" message="+++ API-20 Flow Started +++" />
+		<logger level="INFO" doc:name="Logger" doc:id="f7493280-9eb8-4435-8758-af011390cd84" message="+++ SQS error data received of original payload #[payload] +++" />
+		<choice doc:name="Choice" doc:id="33fe1f0b-c492-4c9d-8652-1ca0a2e000d7" >
+			<when expression='#[!(isEmpty(payload))]'>
+				<set-payload value='#[%dw 2.0&#10;output application/json&#10;---&#10;read(payload, "application/json")]' doc:name="Read Payload" doc:id="fff69692-551b-409c-9bd6-b483f8f06ecb" />
+				<ee:transform doc:name="Variables" doc:id="1a816f56-fd3d-4382-8a81-3317a89b00f2">
+					<ee:message>
+					</ee:message>
+					<ee:variables>
+						<ee:set-variable variableName="client_id"><![CDATA[payload.client_id]]></ee:set-variable>
+						<ee:set-variable variableName="router"><![CDATA[%dw 2.0
+output application/java
+---
+if(payload.buisObj == "OrderData" ) "order" 
+else if (payload.buisObj == "TicketData" ) "ticket"
+else "Invalid Business Object"]]></ee:set-variable>
+						<ee:set-variable variableName="external_id"><![CDATA[payload.external_id]]></ee:set-variable>
+						<ee:set-variable variableName="orgPayload"><![CDATA[%dw 2.0
+output application/json
+---
+payload ]]></ee:set-variable>
+						<ee:set-variable variableName="vPath"><![CDATA[%dw 2.0
+output application/java
+---
+if(payload.buisObj == "OrderData" ) "/api/order" else if (payload.buisObj == "TicketData" ) "/api/ticket"
+else "Invalid Business Object"]]></ee:set-variable>
+						<ee:set-variable variableName="buisObj"><![CDATA[payload.buisObj]]></ee:set-variable>
+						<ee:set-variable variableName="vErr"><![CDATA[payload.ErrorCode]]></ee:set-variable>
+						<ee:set-variable variableName="vRetro"><![CDATA[payload.is_retro]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<set-payload value='#[%dw 2.0&#10;output application/json&#10;---&#10;payload - "client_id" - "buisObj" - "requestorAPI" - "ErrorCode" - "is_retro_updated_by_mule"]' doc:name="Set Payload with removal of required fields" doc:id="dacd39fb-eddc-4604-8d12-d8311f28dd5c" />
+				<logger level="INFO" doc:name="Current Time " doc:id="1db411d0-da42-42e5-bb00-bad6813fd4a9" message="#[%dw 2.0&#10;import dw::core::Dates&#10;output application/json&#10;---&#10;now() as DateTime]"/>
+		<logger level="INFO" doc:name="Logger" doc:id="ad8e17e7-b4da-4ead-9b38-ed8f425675df" message="+++ Message Type is #[vars.buisObj] +++" />
+				<choice doc:name="Choice" doc:id="d316feef-4e9e-4fac-a768-9927579214e0">
+			<when expression='#[vars.router== "ticket"]'>
+				<logger level="INFO" doc:name="Logger" doc:id="0bd8249f-e18f-433c-9d36-f3938c4e752c" message="+++ Ticket data being sent to API-12 +++" />
+						<set-variable value="#[%dw 2.0&#10;output application/json&#10;var date1 = now() as DateTime {format: &quot;yyyy-MM-dd'T'HH:mm:ss&quot;}  as Number&#10;var date2 = vars.orgPayload.SQSMsgCreationTime as DateTime as Number&#10;var tDiff= ((date1 - date2)/60) as String {format: &quot;0.00&quot;}&#10;var vOutageDurationMin = Mule::p('outage.duration') as Number&#10;---&#10;{&#10; currentTime: now() as DateTime {format: &quot;yyyy-MM-dd'T'HH:mm:ss&quot;},&#10; sqsCreationTime : payload.SQSMsgCreationTime ,&#10; timeDiff: ((date1 - date2)/60) as String {format: &quot;0.00&quot;},&#10; vCompare : if (tDiff &gt; vOutageDurationMin ) &quot;yes&quot; else &quot;no&quot;&#10;}]" doc:name="pCompare" doc:id="4a27a1c7-04fe-4f18-bcec-176acab5d7e4" variableName="pCompare"/>
+						<logger level="INFO" doc:name="Logger" doc:id="d4da6c95-08e8-45f8-9f4a-54fd1c357844" message='"Compare" : #[vars.pCompare]' />
+						<choice doc:name="Choice" doc:id="8bb5b88c-25f9-4432-bfb7-3e26eb86a0e4">
+					<when expression='#[((vars.pCompare.vCompare == "yes") and (vars.orgPayload.is_retro == false))]'>
+						<logger level="INFO" doc:name="Logger" doc:id="f76a3c8d-089a-4ba4-a4dc-f9678703c79e" message='"++++Notification message is due to Request payload Time is greaterthan of 5mins to the current date++++"'/>
+						<logger level="INFO" doc:name="Before is_retro" doc:id="8522f07f-30bb-451f-9fcf-18ca746f7de5" message="+++Before is_retro-  #[payload] +++" />
+								<ee:transform doc:name="Update is_retro field to 'true'" doc:id="95e4888a-c574-4d56-b76e-88adafc747b1">
+							<ee:message>
+								<ee:set-payload><![CDATA[%dw 2.0
+import * from dw::util::Values
+output application/json
+---
+(payload  update 'is_retro' with true) ++ {"requestorAPI": "API-20"} ++ {"is_retro_updated_by_mule" : true}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<logger level="INFO" doc:name="After is_retro is true" doc:id="12917402-1088-4411-8816-ebcde3961c6b" message='+++After is_retro is true -  #[payload] ,sourceSys - #[vars.sourceSys], client_id-" #[vars.client_id],request_id -#[vars.request_id],messageIdentifier-#[vars.msgIden], BuisnessObject -#[vars.buisObj],systemIdentifier - #[vars.sysIden]+++'/>
+						<until-successful maxRetries="5" doc:name="Until Successful" doc:id="3eec6c9b-40a7-4efb-82d1-0fb7c75f68a4" >
+							<http:request method="POST" doc:name="Request to API-12" doc:id="d579af7e-53fe-4660-bc37-5659c92a7473" config-ref="API-12_HTTP_Request_configuration" path="#[vars.vPath]">
+							<reconnect frequency="12000" count="5" />
+							<http:headers><![CDATA[#[output application/java
+---
+{
+	"BuisnessObject" : vars.buisObj,
+	"client_id" : vars.client_id
+}]]]></http:headers>
+						</http:request>
+						</until-successful>
+						<logger level="INFO" doc:name="Logger" doc:id="a32dd481-322f-4f23-981a-d270893f2752" message="#[payload]"/>
+								<logger level="INFO" doc:name="Logger" doc:id="9c9c51f4-c966-45af-9668-488f8ac92935" message="+++ Successfully  posted Operational Data to API 12 +++" />
+<!-- 						<set-payload value="#[%dw 2.0 -->
+<!-- &#10;output application/java -->
+<!-- &#10;-&#45;&#45; -->
+<!-- &#10;write(payload,'application/json')]" doc:name="Set Payload" doc:id="e8dae135-1350-4909-aab2-924b4018eef5" /> -->
+<!-- 						<cloudhub:create-notification domain="${secure::cloudhub.domain}" doc:name="Create Notification" doc:id="b0217be7-61b4-469c-a767-643af6b2131d" config-ref="CloudHub_Config" priority="ERROR" /> -->
+<!-- 						<logger level="INFO" doc:name="Logger" doc:id="40700b40-eb78-43c6-9c5d-2474f4972f96" message="+++ #[payload] +++" /> -->
+					
+</when>
+					<otherwise >
+								<set-variable value='#[%dw 2.0&#10;output application/json&#10;---&#10;if (vars.orgPayload.is_retro_updated_by_mule? == true) vars.orgPayload.is_retro_updated_by_mule else false]' doc:name="is_retro_updated_by_mule " doc:id="e80bc478-7c2e-4877-8472-0ed7da82b2dd" variableName="vUpdate"/>
+								<choice doc:name="Choice" doc:id="0c8c9ea4-7d3f-43a4-9ced-584623238b93">
+									<when expression="#[vars.vUpdate == true]">
+										<logger level="INFO" doc:name="Logger" doc:id="3ec0df68-75b1-42a9-8539-8234e10e0244" message='++++ "OriginalPayload_is_retro- " ++ #[vars.vRetro] ++ "  is_retro_updated_by_mule_is IS PRESENT IN THE PAYLOAD"+++' />
+										<ee:transform doc:name="Error _date_time" doc:id="6d053ec9-19e9-4303-a7c6-d52e2c2a82e7">
+							<ee:message>
+								<ee:set-payload><![CDATA[%dw 2.0
+import * from dw::util::Values
+output application/json
+---
+payload ++ {"requestorAPI": "API-20"} ++ {"is_retro_updated_by_mule" : true}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+										<logger level="INFO" doc:name="Logger" doc:id="b02197b6-d945-4a6a-8af0-7dd6bc08d5d5" message="+++ TicketData of Normal Processing data being sent to API-12 #[payload] ,OriginalPayload_is_retro-#[vars.vRetro]+++" />
+										<logger level="INFO" doc:name="Logger" doc:id="6cbfbb69-227c-44f2-9b00-4de2425ce2b2" message='"BuisnessObject" : #[vars.buisObj],"client_id" : #[vars.client_id]'/>
+									</when>
+									<otherwise >
+										<logger level="INFO" doc:name="Logger" doc:id="4f25445a-d83d-4fdc-800c-2187ca99c978" message='++++"NO is_retro_updated_by_mule IS PRESENT IN THE PAYLOAD"+++' />
+										<ee:transform doc:name="Error _date_time" doc:id="1c5b2edb-f705-464d-80b3-99e8bfa520e2" >
+											<ee:message >
+												<ee:set-payload ><![CDATA[%dw 2.0
+import * from dw::util::Values
+output application/json
+---
+payload ++ {"requestorAPI": "API-20"}  ++ {"is_retro_updated_by_mule" : false}]]></ee:set-payload>
+											</ee:message>
+										</ee:transform>
+										<logger level="INFO" doc:name="Logger" doc:id="575db5d7-96a3-48ff-bb06-7582b806d536" message="+++ TicketData of Normal Processing data being sent to API-12 #[payload] ,OriginalPayload_is_retro-#[vars.vRetro]+++" />
+										<logger level="INFO" doc:name="Logger" doc:id="282f886f-c378-4ab6-a76d-15ac7af67b6f" message='"BuisnessObject" : #[vars.buisObj],"client_id" : #[vars.client_id]' />
+									</otherwise>
+								</choice>
+								<http:request method="POST" doc:name="Request to API-12" doc:id="bcec1137-00c4-44c3-a662-0b7e3346d61e" config-ref="API-12_HTTP_Request_configuration" path="#[vars.vPath]">
+							<reconnect frequency="12000" count="5" />
+							<http:headers><![CDATA[#[output application/java
+---
+{
+	
+	"BuisnessObject" : vars.buisObj,
+	"client_id" : vars.client_id
+}]]]></http:headers>
+						</http:request>
+								<logger level="INFO" doc:name="Logger" doc:id="0420a3c7-7234-4b01-9383-2639acb1bbe9" message="#[payload]"/>
+								<logger level="INFO" doc:name="Logger" doc:id="ac32df7d-302d-4a49-8739-b281261ec2ef" message="+++ Successfully posted Operational Data to API 12 +++" />
+					
+</otherwise>
+				</choice>
+			
+</when>
+			<when expression='#[vars.router=="order"]'>
+				<logger level="INFO" doc:name="Logger" doc:id="9c1c7231-5138-46d2-b5e4-e267bc4c3716" message="+++ Order data being sent to API-12 +++" />
+				<ee:transform doc:name="Remove Error _date_time" doc:id="bdd09912-4aeb-4422-ab0a-464c2fa67075">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+import * from dw::util::Values
+output application/json
+---
+payload  ++ {"requestorAPI": "API-20"} ++ {"ErrorCode" :vars.vErr }]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="86dc3520-e8fc-4db6-bab5-3818f8556d61" message="+++ Order Processing data being sent to API-12 #[payload]+++"/>
+						<http:request method="POST" doc:name="Request" doc:id="4584856a-835a-469a-b62c-b39c487e2577" config-ref="API-12_HTTP_Request_configuration" path="#[vars.vPath]" target="Responsevar">
+					<reconnect frequency="12000" count="5" />
+					<http:headers ><![CDATA[#[output application/java
+---
+{
+	"BuisnessObject" : vars.buisObj,
+	"client_id" : vars.client_id
+}]]]></http:headers>
+				</http:request>
+				<logger level="INFO" doc:name="Logger" doc:id="eaf20935-ba02-430a-bc38-541437d7138b" message="#[payload]" />
+				<logger level="INFO" doc:name="Logger" doc:id="03f4a446-3293-485f-92c0-40c3649f9a4d" message="+++ Successfully Order data posted to API 12 +++" />
+			
+</when>
+			<otherwise>
+				<logger level="INFO" doc:name="Logger" doc:id="13345a2e-8844-48b2-9744-eb38d8743c67" message="+++ Invalid Business Object #[vars.buisObj] +++" />
+			</otherwise>
+		</choice>
+		<sqs:get-approximate-number-of-messages doc:name="Get approximate number of messages" doc:id="eb58ae14-f94e-401a-91f0-1b8140b203ce" config-ref="Amazon_SQS_Configuration" queueUrl="${secure::SQSQueueURL}"/>
+		<logger level="INFO" doc:name="Logger" doc:id="097110fb-6037-4a62-a057-1fedf2fa7759" message="+++ Message Count: #[payload] +++"/>
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Logger" doc:id="a70a6a66-898f-4599-a04c-6eb0dffe8a1e" message='+++"No Messages are in SQS Queues"+++'/>
+			</otherwise>
+		</choice>
+		<logger level="INFO" doc:name="Logger" doc:id="1df942b7-1916-4cbc-b896-6f4eb157e4fe" message='+++"API-20 Flow ended"+++'/>
+		<error-handler >
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="9cc8a6c9-d3b5-4a2b-bd1e-92b2ff555031" when='#[error.description contains("failed with status code 422")]'>
+				<logger level="INFO" doc:name="Logger" doc:id="2c33f05b-25b3-44df-a6c4-adc3d486ff31" message="+++ Api-12 Business Validation 422 error received from E1 ++ #[error.muleMessage.typedValue.statusMessage] ++" />
+				<logger level="INFO" doc:name="Logger" doc:id="81bdbb43-0266-4fb5-8d93-2facee56285e" message="+++ Ignore this ERROR as API-12 is already notified CD : payload - #[payload] +++"/>
+				<logger level="INFO" doc:name="Logger" doc:id="12541dce-bb74-4ffb-ba5b-33d6c48fc086" message='#[%dw 2.0&#10;output application/java&#10;---&#10;" BuisObj: " ++ (vars.buisObj default "") ++ " External ID: " ++ (vars.orgPayload.external_id default "" ) ++ " " ++ " Reference : Order Number : " ++ (vars.orgPayload.order_reference default "") ++ " Version: " ++  (vars.orgPayload.version default "") ++ " Ticket : " ++ (vars.orgPayload.ticket_reference default "")]'/>
+<!-- 				<ee:transform doc:name="Validation Error" doc:id="161c2722-7c2c-40c2-a7f0-293874043f77"> -->
+<!-- 					<ee:message> -->
+<!-- 					</ee:message> -->
+<!-- 					<ee:variables > -->
+<!-- 						<ee:set-variable variableName="pMessage" ><![CDATA[%dw 2.0 -->
+<!--  output application/json  -->
+<!--  -&#45;&#45; -->
+<!--  {  -->
+<!--  "latest_message_identifier": (now() >> "UTC") as Number,  -->
+<!--   "referenced_message_id": vars.request_id,  -->
+<!--    "external_id": vars.orgPayload.id,  -->
+<!--   "errors": [  -->
+<!--      {  -->
+<!--        "code": "VALIDATION_ERROR",  -->
+<!--        "detail": "The validation of the order failed in E1 due to " ++ error.muleMessage.typedValue.statusMessage   -->
+<!--   } -->
+<!--   ] -->
+<!-- }]]></ee:set-variable> -->
+<!-- 					</ee:variables> -->
+<!-- 				</ee:transform> -->
+<!-- 				<http:request method="PUT" doc:name="Request" doc:id="02d348b9-8d88-435b-9bca-af3ef347a09b" config-ref="API-5_HTTP_Request_configuration" path="/${secure::request.path.api5}" > -->
+<!-- 					<reconnect frequency="12000" count="5" /> -->
+<!-- 					<http:body ><![CDATA[#[vars.orgPayload]]]></http:body> -->
+<!-- 					<http:headers ><![CDATA[#[output application/java -->
+<!-- -&#45;&#45; -->
+<!-- { -->
+<!-- 	"sourceSys" : vars.sourceSys, -->
+<!-- 	"systemIdentifier" : vars.sysIden, -->
+<!-- 	"BuisnessObject" : vars.buisObj, -->
+<!-- 	"messageIdentifier" : vars.msgIden, -->
+<!-- 	"request_id" : vars.request_id, -->
+<!-- 	"client_id" : vars.client_id -->
+<!-- }]]]></http:headers> -->
+<!-- 				</http:request> -->
+<!-- 				<logger level="INFO" doc:name="Logger" doc:id="1dc2a191-f240-4a29-b449-a8e5bf813e8a" message="+++ Successfully Order/Ticket data posted to API 5 +++" /> -->
+			</on-error-continue>
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="59b1bf6c-fc61-48d2-8c60-6d751b0a1848" type="HTTP:TIMEOUT">
+				<logger level="INFO" doc:name="Logger" doc:id="cfc8d9b7-de75-46ea-bbae-e1e1f3328f52" message="+++Error Continue  for API-20 HTTP TIME OUT Error Segment+++ #[error.description]" />
+				<logger level="INFO" doc:name="Logger" doc:id="fd0e5d50-9b0b-481f-826b-c91da39b1523" message="#[vars.orgPayload]" />
+				<ee:transform doc:name="status" doc:id="0d1d6dab-8efe-47d6-a636-0422a93f1a1a">
+					<ee:message>
+					</ee:message>
+					<ee:variables>
+						<ee:set-variable variableName="status"><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"statusCode" : '504',
+	"errorType" : if (!isEmpty(error.errorType.identifier)) error.errorType.identifier else error.errorType.identifier default "",
+	//"statusText" : if(sizeOf(error.description) >100) error.description[0  to 127] else error.description ++ "Contact Mulesoft team for information."
+	
+	}]]></ee:set-variable>
+						<ee:set-variable variableName="errorStatus"><![CDATA[504]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<cloudhub:create-notification domain="${secure::cloudhub.domain}" doc:name="Create Notification" doc:id="156a7e8c-460a-4380-8e95-66a07e0c15fe" config-ref="CloudHub_Config" priority="ERROR" >
+					<cloudhub:message ><![CDATA[#[%dw 2.0
+output application/java
+---
+"E1 Slowness observed in MuleSoft processing " ++ " -  got out due to HTTP TIMEOUT ERROR . But Successfully posted data into API-12" ++" Error text: "++ "Timeout Exceeded " ++ " Error Code: " ++ vars.errorStatus default ""++ " BuisObj: " ++ (vars.buisObj default "") ++ " External ID: " ++ (vars.orgPayload.external_id default "" ) ++ " " ++ " Reference : Order Number : " ++ (vars.orgPayload.order_reference default "") ++ " Version: " ++  (vars.orgPayload.version default "") ++ " Ticket : " ++ (vars.orgPayload.ticket_reference default "")]]]></cloudhub:message>
+				</cloudhub:create-notification>
+			
+</on-error-continue>
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="a3e58cc2-05ef-40d4-8418-fa31e1403cd6" type="HTTP:BAD_GATEWAY, HTTP:BAD_REQUEST, HTTP:CLIENT_SECURITY, HTTP:CONNECTIVITY, HTTP:FORBIDDEN, HTTP:INTERNAL_SERVER_ERROR, HTTP:METHOD_NOT_ALLOWED, HTTP:NOT_ACCEPTABLE, HTTP:NOT_FOUND, HTTP:PARSING, HTTP:RETRY_EXHAUSTED, HTTP:SECURITY, HTTP:SERVICE_UNAVAILABLE, HTTP:TOO_MANY_REQUESTS, HTTP:UNAUTHORIZED, HTTP:UNSUPPORTED_MEDIA_TYPE">
+				<logger level="INFO" doc:name="Logger" doc:id="0d8910e7-1154-4089-9a90-bee8f38feed1" message="+++Error Continue  for API-20 HTTP Error Segment+++ #[error.description]" />
+				<logger level="INFO" doc:name="Logger" doc:id="ee730f24-6ae8-4301-985d-97d309a6ddec" message="#[vars.orgPayload]" />
+				<ee:transform doc:name="Transform Message" doc:id="95900ed9-36d7-4811-82c6-f69e21bef1f7" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	delaySeconds: 0,
+	body: write(vars.orgPayload, "application/json"),
+	messageAttributes: {
+		"AccountId": {
+			"stringValue" : "000123456",
+			"dataType" : "String.AccountId"
+		} as Object {
+			class: "org.mule.extension.sqs.api.model.MessageAttributeValue"
+		},
+		"NumberId": {
+			"stringValue" : "230.000000000000000001",
+			"dataType" : "Number"
+		} as Object {
+			class : "org.mule.extension.sqs.api.model.MessageAttributeValue"
+		}
+	} as Object {
+		class: "java.util.HashMap"
+	}
+} as Object {
+	class: "org.mule.extension.sqs.api.model.Message"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<until-successful maxRetries="5" doc:name="Until Successful" doc:id="2743ff07-3703-4ae7-ba1d-d1dcdc272b3d" >
+					<sqs:send-message doc:name="Send message" doc:id="f9d57c3a-2134-404a-93f8-f18767180ead" config-ref="Amazon_SQS_Configuration" queueUrl="${secure::SQSQueueURL}" />
+				</until-successful>
+				<!-- <cloudhub:create-notification domain="${secure::cloudhub.domain}" doc:name="Create Notification" doc:id="65a2296d-7cbd-4bf4-8846-941029c908e1" config-ref="CloudHub_Config" priority="ERROR">
+						<cloudhub:message><![CDATA[#[%dw 2.0
+output application/java
+-&#45;&#45;
+"Mule API Communication Error" ++ " - It might got temporary HTTP communication error . Successfully written to SQS for auto-reprocessing." ++ "BuisObj: " ++ (vars.buisObj default "") ++ "External ID: " ++ (vars.orgPayload.external_id default "" ) ++ " " ++ " Reference : Order Number : " ++ (vars.orgPayload.order_reference default "") ++ " Ticket number : " ++ (vars.orgPayload.ticket_reference default "")]]]></cloudhub:message>
+					</cloudhub:create-notification> -->
+				<logger level="INFO" doc:name="Logger" doc:id="75e4383b-a970-429e-9198-09a6813ed3f4" message="+++ Error Message retained into SQS successfully, HTTP Error Segment +++" />
+			</on-error-continue>
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="3c90697f-7674-4ab2-b871-03a45a6e3827" when="#[(error.description contains '504') or  (error.description contains '404') ]">
+				<logger level="INFO" doc:name="Logger" doc:id="351a7a3f-77e4-4d4a-a592-695b0b75cdc1" message="+++Error Propogate Gateway Error Segment of 404 or 504 +++ #[error.description]" />
+			<ee:transform doc:name="Message" doc:id="0f98b150-c969-4bf6-904e-7cde41d91734" >
+					<ee:message />
+					<ee:variables >
+						<ee:set-variable variableName="httpStatus" ><![CDATA[504]]></ee:set-variable>
+						<ee:set-variable variableName="errorDesc" ><![CDATA[error.description]]></ee:set-variable>
+					
+</ee:variables>
+				</ee:transform>
+			<logger level="INFO" doc:name="Logger" doc:id="d37af4d3-2209-47b8-a957-89e9a1d2b414" message="+++Header Details ::: Source System - #[vars.sourceSys] ,Business object - #[vars.buisObject], External id-#[vars.external_id]+++" />
+			<ee:transform doc:name="SQS Payload" doc:id="986982c6-fe21-41cb-a4fd-48b5ec032907">
+				<ee:message>
+					<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+{
+	delaySeconds: 0,
+	body: write(vars.orgPayload, "application/json"),
+	messageAttributes: {
+		"AccountId": {
+			"stringValue" : "000123456",
+			"dataType" : "String.AccountId"
+		} as Object {
+			class: "org.mule.extension.sqs.api.model.MessageAttributeValue"
+		},
+		"NumberId": {
+			"stringValue" : "230.000000000000000001",
+			"dataType" : "Number"
+		} as Object {
+			class : "org.mule.extension.sqs.api.model.MessageAttributeValue"
+		}
+	} as Object {
+		class: "java.util.HashMap"
+	}
+} as Object {
+	class: "org.mule.extension.sqs.api.model.Message"
+}]]></ee:set-payload>
+				</ee:message>
+				<ee:variables>
+				</ee:variables>
+			</ee:transform>
+			<until-successful maxRetries="5" doc:name="Until Successful" doc:id="b0fc9de0-101f-4e07-b626-bae00d989364" millisBetweenRetries="30000">
+						<sqs:send-message doc:name="Send message" doc:id="bdbeef20-fda3-4e13-8c0e-f4f980150c1d" config-ref="Amazon_SQS_Configuration" queueUrl="${secure::SQSQueueURL}" />
+					
+</until-successful>
+				<!-- <cloudhub:create-notification domain="${secure::cloudhub.domain}" doc:name="Create Notification" doc:id="c856aa54-0fad-4ec6-ad8a-2f8801c7ff96" config-ref="CloudHub_Config" priority="ERROR">
+					<cloudhub:message><![CDATA[#[%dw 2.0
+output application/java
+-&#45;&#45;
+"Mule API Communication Error" ++ " - It might got temporary GATEWAY connection error . Successfully written to SQS for auto-reprocessing." ++" BuisObj: " ++ (vars.buisObj default "") ++ " External ID: " ++ (vars.orgPayload.external_id default "" ) ++ " " ++ " Reference : Order Number : " ++ (vars.orgPayload.order_reference default "") ++ " Ticket number : " ++ (vars.orgPayload.ticket_reference default "")]]]></cloudhub:message>
+				</cloudhub:create-notification> -->
+				<logger level="INFO" doc:name="Logger" doc:id="3b79744c-7368-4ee8-96fc-ff0e44f9e2d8" message="+++ Error Message retained into SQS successfully for next attempt, API Gateway Error Segment +++" />
+<!-- 			<flow-ref doc:name="Flow Reference" doc:id="b58c72e4-61ee-4b3d-9af0-5daecebb6edc" name="sendProcessFlag" /> -->
+<!-- 				<cloudhub:create-notification domain="${secure::cloudhub.domain}" doc:name="Create Notification" doc:id="1ea9a4c5-ea3b-42f7-83db-3ff0fb1d63c7" config-ref="CloudHub_Config" priority="ERROR" /> -->
+
+			
+
+
+</on-error-continue>
+<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="4c6a3690-8fcb-49d3-9a11-3ab3b3c01685" type="SQS:ACCESS_DENIED , SQS:CONNECTIVITY , SQS:INTERNAL_FAILURE , SQS:INVALID_CREDENTIALS , SQS:INVALID_DATA , SQS:OPT_IN_REQUIRED , SQS:QUEUE_ALREADY_EXISTS , SQS:QUEUE_DELETED_RECENTLY ,  SQS:REQUEST_EXPIRED ,  SQS:RETRY_EXHAUSTED ,  SQS:SERVICE_UNAVAILABLE ,  SQS:THROTTLING_EXCEPTION">
+				<logger level="INFO" doc:name="Logger" doc:id="d72cef6e-cadf-4075-b335-f3718bfdefdc" message="+++++Inside On Error Propogate for SQS Connection Error  #[vars.buisObject] for CONNECTIVITY OR SYSTEM FAILURES Error ----- The erronous payload is :: #[payload] +++++"/>
+				<cloudhub:create-notification doc:name="Create Notification" doc:id="a7fb46a0-f835-46c3-b723-ad21eacdf961" config-ref="CloudHub_Config" domain="${secure::cloudhub.domain}" priority="ERROR">
+					<cloudhub:message ><![CDATA[#[%dw 2.0
+output application/java
+---
+"Mule API Communication Error" ++ " - It might got temporary failed due to SQS communication error . " ++ " BuisObj: " ++ (vars.buisObj default "") ++ " External ID: " ++ (vars.orgPayload.external_id default "" ) ++ " " ++ " Reference : Order Number : " ++ (vars.orgPayload.order_reference default "") ++ " Ticket number : " ++ (vars.orgPayload.ticket_reference default "") ++ " Version: " ++  (vars.orgPayload.version default "")]]]></cloudhub:message>
+				</cloudhub:create-notification>
+			
+</on-error-propagate>
+			<on-error-propagate enableNotifications="false" logException="true" doc:name="On Error Propagate" doc:id="f944afcf-0586-4d7f-9f26-0f0553b67350" type="ANY">
+				<logger level="INFO" doc:name="Logger" doc:id="6c0d0d89-8999-409d-8566-8ad6c13e126f" message="+++ Error ANY Segment : Unknown Error may occur in API-20, it is unexpected error. Refer Payload next +++"/>
+				<logger level="INFO" doc:name="Logger" doc:id="177296cc-bbc0-490f-8d4b-3ace7d236721" message="#[vars.orgPayload]"/>
+				<cloudhub:create-notification domain="${secure::cloudhub.domain}" doc:name="Create Notification" doc:id="d0c5b9c4-f898-4807-9a5f-88bb07ad1d9c" config-ref="CloudHub_Config" priority="ERROR">
+					<cloudhub:message><![CDATA[#[%dw 2.0
+output application/java
+---
+"Mule API Communication Error" ++ " - It might got any type of UNKNOWN ERROR . Successfully written to SQS for auto-reprocessing." ++ " BuisObj: " ++ (vars.buisObj default "") ++ " External ID: " ++ (vars.orgPayload.external_id default "" ) ++ " " ++ " Reference : Order Number : " ++ (vars.orgPayload.order_reference default "") ++ " Ticket number : " ++ (vars.orgPayload.ticket_reference default "")++ " Version: " ++  (vars.orgPayload.version default "")]]]></cloudhub:message>
+				</cloudhub:create-notification>
+				<ee:transform doc:name="Transform Message" doc:id="1189c5dc-e55f-4056-b086-d46ae5d6cb29" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	delaySeconds: 0,
+	body: write(vars.orgPayload, "application/json"),
+	messageAttributes: {
+		"AccountId": {
+			"stringValue" : "000123456",
+			"dataType" : "String.AccountId"
+		} as Object {
+			class: "org.mule.extension.sqs.api.model.MessageAttributeValue"
+		},
+		"NumberId": {
+			"stringValue" : "230.000000000000000001",
+			"dataType" : "Number"
+		} as Object {
+			class : "org.mule.extension.sqs.api.model.MessageAttributeValue"
+		}
+	} as Object {
+		class: "java.util.HashMap"
+	}
+} as Object {
+	class: "org.mule.extension.sqs.api.model.Message"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<until-successful maxRetries="5" doc:name="Until Successful" doc:id="633ab10d-47f4-4c55-a60e-4208bee97aa6" >
+					<sqs:send-message doc:name="Send message" doc:id="08bbe2e2-44a9-4edf-8dd2-92ae2e23e0c2" config-ref="Amazon_SQS_Configuration" queueUrl="${secure::SQSQueueURL}" />
+				</until-successful>
+				<logger level="INFO" doc:name="Logger" doc:id="983f3b1e-55e6-4bd4-80c5-bd829e2a3e0b" message="+++ Error Message retained into SQS successfully for next attempt, ANY Error Segment +++" />
+			</on-error-propagate>
+			
+		</error-handler>
+	</flow>
+</mule>

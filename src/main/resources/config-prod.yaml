@@ -1,0 +1,17 @@
+api12.host: api-12-cd-order-ticket-to-jdeuk.uk-e1.cloudhub.io  
+api12.truststore.path: keystore/api-6-Mule-prd-trustStore.ts
+api12.truststore.pwd: "![EDefy+Nq3ibEvTGUIc012Q==]"
+api12.muleuser: cdukmuleuser
+api12.mulepassword: "![Xk759E26Ngj45yc7b3Us9VcGDcLw2OX6IDs5PNpdIBDS71RitWUov+C3sOrK7BkP]"
+
+
+SQSTestQueueARN: "arn:aws:sqs:eu-west-2:218792631131:cd-uk-prod-e1-ops-data-reprocessor"
+SQSAccessKey: "AKIATF4IOTNNZ3INBUM5"
+SQSSecretKey: "![ux4f3dns7ltPDA+ezkbK+Nbc0WlOz+Ic51b/TcUn0NjLwnK4PjTRMBKcI+2Qe9Bq]"
+SQSQueueURL: "https://sqs.eu-west-2.amazonaws.com/218792631131/cd-uk-prod-e1-ops-data-reprocessor"
+sqs.receive.frequency: "5"
+
+cloudhub.username: "Concrete-Direct-CICD"
+cloudhub.pwd: "![EK581WBxk6xF0hg0hM6P2X63E7NAMJv0ljrrFcyb52M=]"
+cloudhub.env: "![NJ/PqLo4LEOtqJtYv99vSmyfvTYf8cPwYqA59ywNop2m5Oez1UjFrC98bwe7k2D0]"
+cloudhub.domain: "api-20-common-e1-ops-data-reprocessor"
