@@ -7,7 +7,7 @@
 	<version>1.0.0-SNAPSHOT</version>
 	<packaging>mule-application</packaging>
 
-	<name>api-20-common-e1-ops-data-reprocessor_v2.9.21</name>
+	<name>api-20-common-e1-ops-data-reprocessor_v2.9.21.git</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
